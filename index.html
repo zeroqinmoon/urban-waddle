@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <!-- =========================================================
+       SEGURANÇA — FRAME-BUSTING ANTECIPADO
+       Executado ANTES de qualquer renderização. Se a página
+       estiver dentro de um iframe (clickjacking), todo o
+       conteúdo é ocultado imediatamente e o topo é redirecionado.
+       A checagem de protocolo 'file:' evita falsos positivos
+       quando o arquivo é aberto localmente (duplo clique).
+       ========================================================= -->
+  <script>
+    (function () {
+      try {
+        // Em file:// cada página é tratada como origem única pelo navegador,
+        // o que dispara falsos positivos no frame-busting. Ignorar nesse caso.
+        if (location.protocol === 'file:') return;
+
+        if (window.top !== window.self) {
+          // Estamos em iframe malicioso — esconder o conteúdo
+          document.documentElement.style.display = 'none';
+          // Tentar quebrar o frame (funciona apenas same-origin)
+          try { window.top.location = window.self.location.href; } catch (e) {}
+          // Fallback para cross-origin: substituir o próprio frame pelo topo
+          try { window.self.location = window.self.location.href; } catch (e) {}
+        }
+      } catch (e) { /* silencioso */ }
+    })();
+  </script>
+
+  <!-- =========================================================
+       SEGURANÇA — CONFIGURAÇÃO DO SERVIDOR (obrigatória em produção)
+       -------------------------------------------------------------
+       Estes cabeçalhos NÃO podem ser aplicados via HTML. Configure
+       no servidor web / CDN / reverse-proxy.
+
+       --- Nginx ---
+         add_header Strict-Transport-Security  "max-age=63072000; includeSubDomains; preload" always;
+         add_header X-Content-Type-Options     "nosniff" always;
+         add_header X-Frame-Options            "DENY" always;
+         add_header Referrer-Policy            "strict-origin-when-cross-origin" always;
+         add_header Permissions-Policy         "geolocation=(), microphone=(), camera=(), payment=(), usb=()" always;
+         add_header Cross-Origin-Opener-Policy "same-origin" always;
+         add_header Cross-Origin-Resource-Policy "same-origin" always;
+         add_header Content-Security-Policy    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests;" always;
+         server_tokens off;
+
+       --- Apache (.htaccess) ---
+         Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+         Header always set X-Content-Type-Options "nosniff"
+         Header always set X-Frame-Options "DENY"
+         Header always set Referrer-Policy "strict-origin-when-cross-origin"
+         Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+         Header always set Cross-Origin-Opener-Policy "same-origin"
+         Header always set Cross-Origin-Resource-Policy "same-origin"
+         Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests;"
+         ServerTokens Prod
+         ServerSignature Off
+
+       --- Rate limiting (Nginx) ---
+         limit_req_zone $binary_remote_addr zone=ts_zone:10m rate=20r/s;
+         limit_req zone=ts_zone burst=40 nodelay;
+         limit_conn_zone $binary_remote_addr zone=ts_conn:10m;
+         limit_conn ts_conn 30;
+       ========================================================= -->
+
+  <!-- =========================================================
+       CSP (camada de defesa no HTML)
+       Observações importantes:
+         • frame-ancestors, report-uri e sandbox são IGNORADOS em <meta>.
+           Devem vir por header HTTP (ver bloco acima).
+         • script-src-attr 'none' bloqueia handlers inline (onclick=...).
+         • upgrade-insecure-requests força HTTPS em sub-recursos.
+         • connect-src inclui cdn.jsdelivr.net para permitir que o
+           DevTools baixe os source maps (.map) do Bootstrap sem
+           gerar erros de CSP no console.
+       ========================================================= -->
+  <meta http-equiv="Content-Security-Policy"
+        content="
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+          script-src-attr 'none';
+          style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
+          font-src 'self' https://fonts.gstatic.com;
+          img-src 'self' data: https:;
+          connect-src 'self' https://cdn.jsdelivr.net;
+          form-action 'self';
+          base-uri 'self';
+          object-src 'none';
+          upgrade-insecure-requests;
+        ">
+
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta name="format-detection" content="telephone=no,email=no,address=no">
+  <meta name="color-scheme" content="light">
+
+  <!-- SEO -->
+  <title>TSoluções Financeiras | Crédito Imobiliário, Capital de Giro e Consórcio</title>
+  <meta name="description" content="A TSoluções Financeiras é um correspondente bancário online. Negociamos crédito imobiliário, capital de giro e consórcio com instituições financeiras e fundos de investimento parceiros e enviamos propostas pré-aprovadas para você.">
+  <meta name="author" content="TSoluções Financeiras">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0b2545">
+  <link rel="canonical" href="https://tsolucoesfinanceiras.com.br/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="TSoluções Financeiras">
+  <meta property="og:title" content="TSoluções Financeiras | Soluções de crédito para o seu negócio">
+  <meta property="og:description" content="Correspondente bancário online. Crédito imobiliário, capital de giro e consórcio, com linhas de R$ 300 mil a R$ 60 milhões.">
+  <meta property="og:url" content="https://tsolucoesfinanceiras.com.br/">
+
+  <!-- Favicon inline -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%230b2545'/><text x='50' y='70' font-size='50' font-family='Arial,sans-serif' font-weight='bold' fill='%23d97b2e' text-anchor='middle'>TS</text></svg>">
+
+  <!-- Tipografia -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet" crossorigin="anonymous">
+
+  <!-- Bootstrap 5 com Subresource Integrity (SRI) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous">
+
+  <style>
+    /* =========================================================
+       1. DESIGN TOKENS
+       ========================================================= */
+    :root {
+      --ts-navy-900: #081a2f;
+      --ts-navy-800: #0b2545;
+      --ts-navy-700: #123a63;
+
+      --ts-blue: #1d6fb8;
+      --ts-blue-600: #3d92ca;
+      --ts-blue-100: #e8f2fa;
+
+      --ts-accent: #d97b2e;
+      --ts-accent-dark: #b8641d;
+
+      --ts-wa: #25d366;
+      --ts-wa-dark: #1eb356;
+
+      --ts-ink: #16232f;
+      --ts-body: #5a6b7b;
+      --ts-line: #e4ecf3;
+      --ts-bg-soft: #f5f8fb;
+
+      --ts-radius: 18px;
+      --ts-radius-lg: 24px;
+
+      --ts-shadow-sm: 0 2px 10px rgba(11, 37, 69, .06);
+      --ts-shadow: 0 18px 45px rgba(11, 37, 69, .10);
+      --ts-shadow-lg: 0 30px 70px rgba(8, 26, 47, .28);
+    }
+
+    /* =========================================================
+       2. BASE
+       ========================================================= */
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 84px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      color: var(--ts-body);
+      background: #fff;
+      font-size: 1rem;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, h5 {
+      color: var(--ts-ink);
+      font-weight: 700;
+      letter-spacing: -.02em;
+      line-height: 1.18;
+      margin-bottom: .75rem;
+    }
+
+    p { margin-bottom: 1rem; }
+    a { text-decoration: none; }
+    img, svg { max-width: 100%; }
+    section[id] { scroll-margin-top: 84px; }
+
+    a:focus-visible,
+    button:focus-visible,
+    .accordion-button:focus-visible {
+      outline: 3px solid var(--ts-blue-600);
+      outline-offset: 3px;
+      border-radius: 8px;
+    }
+
+    /* =========================================================
+       3. TIPOGRAFIA UTILITÁRIA
+       ========================================================= */
+    .ts-h2 { font-size: clamp(1.75rem, 1.1rem + 2.4vw, 2.6rem); }
+    .ts-h3 { font-size: clamp(1.15rem, 1rem + .5vw, 1.35rem); font-weight: 700; }
+    .ts-h4 { font-size: 1.05rem; font-weight: 700; margin-bottom: .25rem; }
+
+    .ts-lead {
+      font-size: clamp(1rem, .95rem + .25vw, 1.1rem);
+      line-height: 1.75;
+      color: var(--ts-body);
+    }
+
+    .ts-eyebrow {
+      display: inline-block;
+      font-size: .76rem;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ts-blue);
+      margin-bottom: .9rem;
+    }
+
+    .ts-eyebrow-light { color: #8ecbf0; }
+
+    /* =========================================================
+       4. LAYOUT DE SEÇÃO
+       ========================================================= */
+    .ts-section {
+      padding: clamp(3.75rem, 2rem + 6vw, 7rem) 0;
+      position: relative;
+    }
+
+    .ts-section-soft { background: var(--ts-bg-soft); }
+
+    .ts-section-dark {
+      background:
+        radial-gradient(900px 420px at 85% 0%, rgba(61, 146, 202, .22), transparent 60%),
+        linear-gradient(165deg, var(--ts-navy-800) 0%, var(--ts-navy-900) 100%);
+      color: rgba(255, 255, 255, .78);
+    }
+
+    .ts-section-dark h2,
+    .ts-section-dark h3 { color: #fff; }
+
+    .ts-section-head {
+      max-width: 780px;
+      margin: 0 auto clamp(2.25rem, 1rem + 3vw, 3.5rem);
+    }
+
+    /* =========================================================
+       5. BOTÕES
+       ========================================================= */
+    .ts-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .55rem;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: .97rem;
+      padding: .8rem 1.6rem;
+      border: 1px solid transparent;
+      transition: transform .25s ease, box-shadow .25s ease,
+                  background-color .25s ease, color .25s ease, border-color .25s ease;
+      white-space: nowrap;
+    }
+
+    .ts-btn-lg { padding: 1rem 2rem; font-size: 1.03rem; }
+
+    .ts-btn-primary {
+      background: var(--ts-blue);
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(29, 111, 184, .26);
+    }
+    .ts-btn-primary:hover,
+    .ts-btn-primary:focus {
+      background: #155c9c;
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 16px 32px rgba(29, 111, 184, .34);
+    }
+
+    .ts-btn-ghost {
+      background: transparent;
+      color: #fff;
+      border-color: rgba(255, 255, 255, .38);
+    }
+    .ts-btn-ghost:hover,
+    .ts-btn-ghost:focus {
+      background: rgba(255, 255, 255, .12);
+      color: #fff;
+      border-color: rgba(255, 255, 255, .7);
+      transform: translateY(-2px);
+    }
+
+    .ts-btn-wa {
+      background: var(--ts-wa);
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(37, 211, 102, .32);
+    }
+    .ts-btn-wa:hover,
+    .ts-btn-wa:focus {
+      background: var(--ts-wa-dark);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(37, 211, 102, .45);
+    }
+
+    .ts-link-arrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      font-weight: 600;
+      color: var(--ts-blue);
+      transition: gap .25s ease, color .25s ease;
+    }
+    .ts-link-arrow:hover { gap: .75rem; color: #155c9c; }
+
+    /* =========================================================
+       6. NAVBAR
+       ========================================================= */
+    .ts-nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1040;
+      padding: .85rem 0;
+      background: transparent;
+      transition: background-color .35s ease, box-shadow .35s ease, padding .35s ease;
+    }
+
+    .ts-nav.is-scrolled {
+      background: rgba(255, 255, 255, .94);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 1px 0 var(--ts-line), 0 12px 30px rgba(11, 37, 69, .07);
+      padding: .45rem 0;
+    }
+
+    .ts-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: .7rem;
+      color: #fff;
+      transition: color .3s ease;
+    }
+
+    .ts-brand-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex: 0 0 auto;
+      background: var(--ts-navy-800);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .22);
+      transition: width .3s ease, height .3s ease;
+    }
+
+    .ts-nav.is-scrolled .ts-brand-logo {
+      width: 44px;
+      height: 44px;
+    }
+
+    .ts-brand-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.05;
+    }
+    .ts-brand-text strong {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      color: currentColor;
+    }
+    .ts-brand-text small {
+      font-size: .64rem;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      opacity: .72;
+      color: currentColor;
+    }
+
+    .ts-nav .nav-link {
+      color: rgba(255, 255, 255, .84);
+      font-weight: 500;
+      font-size: .95rem;
+      padding: .5rem .85rem;
+      border-radius: 10px;
+      transition: color .25s ease, background-color .25s ease;
+    }
+    .ts-nav .nav-link:hover,
+    .ts-nav .nav-link.active { color: #fff; }
+
+    .ts-nav.is-scrolled .ts-brand,
+    .ts-nav.is-scrolled .nav-link { color: var(--ts-navy-800); }
+    .ts-nav.is-scrolled .nav-link:hover,
+    .ts-nav.is-scrolled .nav-link.active { color: var(--ts-blue); }
+
+    .ts-toggler {
+      width: 46px;
+      height: 46px;
+      border: 0;
+      background: transparent;
+      color: #fff;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      border-radius: 12px;
+      transition: color .3s ease, background-color .25s ease;
+    }
+    .ts-toggler:hover { background: rgba(255, 255, 255, .1); }
+    .ts-toggler-bar {
+      display: block;
+      width: 22px;
+      height: 2px;
+      border-radius: 2px;
+      background: currentColor;
+      transition: transform .3s ease, opacity .3s ease;
+    }
+    .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(2) { opacity: 0; }
+    .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    .ts-nav.is-scrolled .ts-toggler { color: var(--ts-navy-800); }
+
+    @media (max-width: 991.98px) {
+      .ts-nav .navbar-collapse {
+        background: #fff;
+        border-radius: 18px;
+        padding: .85rem 1rem 1rem;
+        margin-top: .8rem;
+        box-shadow: var(--ts-shadow);
+        border: 1px solid var(--ts-line);
+      }
+      .ts-nav .navbar-collapse .nav-link {
+        color: var(--ts-navy-800);
+        padding: .7rem .5rem;
+        border-bottom: 1px solid var(--ts-line);
+        border-radius: 0;
+      }
+      .ts-nav .navbar-collapse .nav-item:last-of-type .nav-link { border-bottom: 0; }
+      .ts-nav .navbar-collapse .nav-link:hover,
+      .ts-nav .navbar-collapse .nav-link.active { color: var(--ts-blue); }
+
+      .ts-nav.is-open {
+        background: rgba(255, 255, 255, .98);
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+      }
+      .ts-nav.is-open .ts-brand,
+      .ts-nav.is-open .ts-toggler { color: var(--ts-navy-800); }
+      .ts-nav.is-open .ts-toggler:hover { background: rgba(11, 37, 69, .06); }
+    }
+
+    /* =========================================================
+       7. HERO
+       ========================================================= */
+    .ts-hero {
+      position: relative;
+      padding: 8.5rem 0 5rem;
+      overflow: hidden;
+      color: #fff;
+      background:
+        radial-gradient(1100px 520px at 78% 10%, rgba(61, 146, 202, .34), transparent 62%),
+        radial-gradient(760px 440px at 6% 96%, rgba(217, 123, 46, .18), transparent 65%),
+        linear-gradient(160deg, var(--ts-navy-800) 0%, var(--ts-navy-900) 100%);
+    }
+
+    .ts-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px);
+      background-size: 26px 26px;
+      -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 72%);
+      mask-image: linear-gradient(to bottom, #000 0%, transparent 72%);
+      pointer-events: none;
+    }
+
+    @media (min-width: 992px) {
+      .ts-hero { padding: 11rem 0 7rem; }
+    }
+
+    .ts-hero .container { position: relative; z-index: 1; }
+
+    .ts-hero-title {
+      font-size: clamp(2rem, 1.2rem + 3.4vw, 3.5rem);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.03em;
+      margin-bottom: 1.15rem;
+    }
+
+    .ts-hero-sub {
+      font-size: clamp(1rem, .95rem + .4vw, 1.16rem);
+      line-height: 1.75;
+      color: rgba(255, 255, 255, .78);
+      max-width: 34rem;
+      margin-bottom: 2rem;
+    }
+
+    .ts-hero-list {
+      list-style: none;
+      padding: 0;
+      margin: 2.5rem 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .6rem 1.75rem;
+      font-size: .93rem;
+      color: rgba(255, 255, 255, .72);
+    }
+    .ts-hero-list li {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .ts-hero-list svg { flex: 0 0 auto; color: var(--ts-blue-600); }
+
+    .ts-hero-card {
+      background: rgba(255, 255, 255, .07);
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: var(--ts-radius-lg);
+      padding: clamp(1.5rem, 1rem + 1.5vw, 2.25rem);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--ts-shadow-lg);
+    }
+
+    .ts-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .74rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: .4rem .8rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .1);
+      border: 1px solid rgba(255, 255, 255, .18);
+      color: rgba(255, 255, 255, .9);
+      white-space: nowrap;
+    }
+    .ts-chip-accent {
+      background: rgba(217, 123, 46, .22);
+      border-color: rgba(217, 123, 46, .48);
+      color: #f3c39a;
+    }
+
+    .ts-hc-label {
+      font-size: .78rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .55);
+      margin: 1.75rem 0 .35rem;
+    }
+
+    .ts-hc-value {
+      font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.05rem);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.02em;
+      line-height: 1.25;
+      margin-bottom: 0;
+    }
+    .ts-hc-sep { color: var(--ts-accent); font-weight: 600; }
+
+    .ts-hc-divider {
+      border: 0;
+      border-top: 1px solid rgba(255, 255, 255, .14);
+      margin: 1.75rem 0 1.25rem;
+      opacity: 1;
+    }
+
+    .ts-hc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: .55rem;
+    }
+    .ts-hc-list li {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      font-size: .95rem;
+      color: rgba(255, 255, 255, .85);
+    }
+    .ts-hc-list li::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ts-accent);
+      flex: 0 0 auto;
+    }
+
+    /* =========================================================
+       8. CARDS
+       ========================================================= */
+    .ts-card {
+      height: 100%;
+      background: #fff;
+      border: 1px solid var(--ts-line);
+      border-radius: var(--ts-radius);
+      padding: clamp(1.5rem, 1.1rem + 1vw, 2rem);
+      box-shadow: var(--ts-shadow-sm);
+      transition: transform .35s cubic-bezier(.22, .61, .36, 1),
+                  box-shadow .35s ease, border-color .35s ease;
+    }
+    .ts-card:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--ts-shadow);
+      border-color: #cfe2f2;
+    }
+
+    .ts-card p:last-child { margin-bottom: 0; }
+
+    .ts-ico {
+      width: 54px;
+      height: 54px;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      background: var(--ts-blue-100);
+      color: var(--ts-blue);
+      margin-bottom: 1.15rem;
+      flex: 0 0 auto;
+    }
+
+    .ts-ico-sm {
+      width: 46px;
+      height: 46px;
+      border-radius: 13px;
+      margin-bottom: 0;
+    }
+
+    .ts-ico-accent {
+      background: rgba(217, 123, 46, .12);
+      color: var(--ts-accent-dark);
+    }
+
+    .ts-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      background: #fff;
+      border: 1px solid var(--ts-line);
+      border-radius: var(--ts-radius);
+      padding: 1.35rem;
+      box-shadow: var(--ts-shadow-sm);
+      transition: transform .35s cubic-bezier(.22, .61, .36, 1),
+                  box-shadow .35s ease, border-color .35s ease;
+    }
+    .ts-feature:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--ts-shadow);
+      border-color: #cfe2f2;
+    }
+    .ts-feature p {
+      margin-bottom: 0;
+      font-size: .93rem;
+      line-height: 1.65;
+    }
+
+    /* =========================================================
+       9. COMO FUNCIONA
+       ========================================================= */
+    .ts-step { height: 100%; }
+
+    .ts-step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      background: rgba(217, 123, 46, .16);
+      border: 1px solid rgba(217, 123, 46, .42);
+      color: #f0b482;
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .ts-step p {
+      color: rgba(255, 255, 255, .72);
+      font-size: .95rem;
+      margin-bottom: 0;
+    }
+
+    .ts-step-line {
+      border: 0;
+      border-top: 1px solid rgba(255, 255, 255, .16);
+      opacity: 1;
+      margin: 1.75rem 0 1.5rem;
+    }
+
+    /* =========================================================
+       10. ACCORDION FAQ
+       ========================================================= */
+    .ts-accordion .accordion-item {
+      border: 1px solid var(--ts-line);
+      border-radius: 16px;
+      margin-bottom: .85rem;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: var(--ts-shadow-sm);
+    }
+
+    .ts-accordion .accordion-button {
+      font-weight: 600;
+      font-size: 1.01rem;
+      color: var(--ts-ink);
+      background: #fff;
+      padding: 1.15rem 1.35rem;
+      box-shadow: none;
+      line-height: 1.45;
+    }
+
+    .ts-accordion .accordion-button:not(.collapsed) {
+      color: var(--ts-blue);
+      background: var(--ts-blue-100);
+    }
+
+    .ts-accordion .accordion-button::after {
+      background-size: 1rem;
+      width: 1rem;
+      height: 1rem;
+      flex: 0 0 auto;
+    }
+
+    .ts-accordion .accordion-body {
+      padding: 0 1.35rem 1.35rem;
+      color: var(--ts-body);
+      font-size: .96rem;
+      line-height: 1.75;
+      background: #fff;
+    }
+
+    .ts-accordion .accordion-button:not(.collapsed) + .accordion-collapse .accordion-body {
+      background: var(--ts-blue-100);
+    }
+
+    /* =========================================================
+       11. BLOCO DE CONTATO / WHATSAPP
+       ========================================================= */
+    .ts-wa-card {
+      background: #fff;
+      border: 1px solid var(--ts-line);
+      border-radius: var(--ts-radius-lg);
+      padding: clamp(1.5rem, 1rem + 2vw, 2.75rem);
+      box-shadow: var(--ts-shadow);
+      text-align: center;
+    }
+
+    .ts-wa-badge {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(37, 211, 102, .12);
+      color: var(--ts-wa);
+      margin: 0 auto 1.25rem;
+      animation: tsPulse 2.6s ease-in-out infinite;
+    }
+
+    @keyframes tsPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, .35); }
+      50%      { box-shadow: 0 0 0 16px rgba(37, 211, 102, 0); }
+    }
+
+    .ts-wa-card h3 {
+      font-size: clamp(1.15rem, 1rem + .6vw, 1.4rem);
+      margin-bottom: .6rem;
+    }
+
+    .ts-wa-card .ts-wa-desc {
+      color: var(--ts-body);
+      font-size: .98rem;
+      max-width: 30rem;
+      margin: 0 auto 1.5rem;
+    }
+
+    .ts-wa-note {
+      margin: 1.1rem 0 0;
+      font-size: .84rem;
+      color: #8598a8;
+    }
+
+    .ts-contact-list {
+      list-style: none;
+      padding: 0;
+      margin: 2rem 0 0;
+      display: grid;
+      gap: 1rem;
+    }
+    .ts-contact-list li {
+      display: flex;
+      gap: .9rem;
+      align-items: flex-start;
+    }
+    .ts-contact-list .ts-ico { margin-bottom: 0; }
+    .ts-contact-list strong {
+      display: block;
+      color: var(--ts-ink);
+      font-size: .98rem;
+      margin-bottom: .1rem;
+    }
+    .ts-contact-list span { font-size: .92rem; }
+
+    .ts-wa-float {
+      position: fixed;
+      bottom: 22px;
+      right: 22px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: var(--ts-wa);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 12px 28px rgba(37, 211, 102, .45);
+      z-index: 1035;
+      transition: transform .25s ease, box-shadow .25s ease, background-color .25s ease;
+    }
+    .ts-wa-float:hover,
+    .ts-wa-float:focus {
+      background: var(--ts-wa-dark);
+      color: #fff;
+      transform: scale(1.08);
+      box-shadow: 0 16px 36px rgba(37, 211, 102, .6);
+    }
+
+    @media (max-width: 575.98px) {
+      .ts-wa-float { width: 52px; height: 52px; bottom: 16px; right: 16px; }
+    }
+
+    /* =========================================================
+       12. FOOTER
+       ========================================================= */
+    .ts-footer {
+      background: linear-gradient(170deg, var(--ts-navy-800) 0%, var(--ts-navy-900) 100%);
+      color: rgba(255, 255, 255, .68);
+      padding: clamp(3rem, 2rem + 3vw, 4.5rem) 0 1.75rem;
+      font-size: .93rem;
+    }
+
+    .ts-footer h4 {
+      color: #fff;
+      font-size: .82rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 1.1rem;
+    }
+
+    .ts-footer a {
+      color: rgba(255, 255, 255, .68);
+      transition: color .25s ease;
+    }
+    .ts-footer a:hover { color: #fff; }
+
+    .ts-footer-links {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: .55rem;
+    }
+
+    .ts-footer .ts-brand { color: #fff; margin-bottom: 1rem; }
+    .ts-footer .ts-brand-logo { width: 56px; height: 56px; }
+
+    .ts-footer hr {
+      border-color: rgba(255, 255, 255, .12);
+      opacity: 1;
+      margin: 2.5rem 0 1.5rem;
+    }
+
+    .ts-social {
+      list-style: none;
+      display: flex;
+      gap: .6rem;
+      padding: 0;
+      margin: 1.25rem 0 0;
+    }
+    .ts-social a {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, .07);
+      border: 1px solid rgba(255, 255, 255, .12);
+      color: rgba(255, 255, 255, .8);
+      transition: background-color .25s ease, color .25s ease, transform .25s ease;
+    }
+    .ts-social a:hover {
+      background: var(--ts-blue);
+      color: #fff;
+      transform: translateY(-3px);
+    }
+
+    .ts-footer-bottom {
+      font-size: .85rem;
+      color: rgba(255, 255, 255, .55);
+    }
+
+    /* =========================================================
+       13. ANIMAÇÕES
+       ========================================================= */
+    .reveal {
+      opacity: 0;
+      transform: translateY(26px);
+      transition: opacity .75s ease, transform .75s cubic-bezier(.22, .61, .36, 1);
+      will-change: opacity, transform;
+    }
+    .reveal.is-visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+
+      .reveal {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+      }
+
+      .ts-card,
+      .ts-feature,
+      .ts-btn,
+      .ts-social a,
+      .ts-link-arrow,
+      .ts-wa-float {
+        transition: none !important;
+      }
+
+      .ts-card:hover,
+      .ts-feature:hover,
+      .ts-btn:hover,
+      .ts-social a:hover,
+      .ts-wa-float:hover {
+        transform: none !important;
+      }
+
+      .ts-wa-badge { animation: none !important; }
+    }
+
+    /* =========================================================
+       14. AJUSTES FINOS RESPONSIVOS
+       ========================================================= */
+    @media (max-width: 575.98px) {
+      .ts-hero { padding-top: 7.5rem; }
+      .ts-btn { width: 100%; }
+      .ts-btn-auto { width: auto; }
+      .ts-hero-list { flex-direction: column; gap: .6rem; }
+      .ts-hero-card { border-radius: 20px; }
+      .ts-chip { font-size: .68rem; padding: .35rem .7rem; }
+      .ts-brand-logo { width: 44px; height: 44px; }
+    }
+
+    @media (min-width: 576px) {
+      .ts-btn-auto { width: auto; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- =========================================================
+       NAVBAR
+       ========================================================= -->
+  <header class="ts-nav" id="tsNav">
+    <nav class="navbar navbar-expand-lg py-0" aria-label="Navegação principal">
+      <div class="container">
+
+        <a class="navbar-brand ts-brand" href="#inicio" aria-label="TSoluções Financeiras — ir para o início">
+          <img
+            src="https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg?stp=c191.191.1666.1666a_dst-jpg_tt6&amp;cstp=mx1666x1666&amp;ctp=s200x200&amp;_nc_cat=107&amp;_nc_map=urlgen_bucketless&amp;ccb=1-7&amp;_nc_sid=2d3e12&amp;_nc_ohc=QAYDD-Iog1cQ7kNvwGtMla4&amp;_nc_oc=AdpEH-Ju0izydy4nAgXyMtOVDZp-PUsl5LcB4TDBaKGbwiK61t94Q_FdmeloC7y9Gyc&amp;_nc_zt=24&amp;_nc_ht=scontent.ffec7-1.fna&amp;_nc_gid=5FdniabyTT880GG-qgKDaA&amp;_nc_ss=7b289&amp;oh=00_AQKhyqugqHG5Z-Cy38LrqPhJL71tA21o_127KyNp59UdUQ&amp;oe=6AB8A1D6"
+            alt="Logotipo TSoluções Financeiras"
+            class="ts-brand-logo"
+            width="52" height="52"
+            loading="eager"
+            decoding="async"
+            fetchpriority="high"
+            referrerpolicy="no-referrer">
+          <span class="ts-brand-text">
+            <strong>TSoluções</strong>
+            <small>Financeiras</small>
+          </span>
+        </a>
+
+        <button class="ts-toggler d-lg-none" type="button"
+                data-bs-toggle="collapse" data-bs-target="#tsNavMenu"
+                aria-controls="tsNavMenu" aria-expanded="false"
+                aria-label="Abrir menu de navegação">
+          <span class="ts-toggler-bar"></span>
+          <span class="ts-toggler-bar"></span>
+          <span class="ts-toggler-bar"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="tsNavMenu">
+          <ul class="navbar-nav ms-auto align-items-lg-center">
+            <li class="nav-item"><a class="nav-link" href="#inicio">Início</a></li>
+            <li class="nav-item"><a class="nav-link" href="#quem-somos">Quem somos</a></li>
+            <li class="nav-item"><a class="nav-link" href="#solucoes">Soluções</a></li>
+            <li class="nav-item"><a class="nav-link" href="#beneficios">Benefícios</a></li>
+            <li class="nav-item"><a class="nav-link" href="#como-funciona">Como funciona</a></li>
+            <li class="nav-item"><a class="nav-link" href="#faq">Dúvidas</a></li>
+            <li class="nav-item ms-lg-3 mt-3 mt-lg-0">
+              <a class="btn ts-btn ts-btn-wa w-100 js-wa"
+                 href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Gostaria%20de%20obter%20informa%C3%A7%C3%B5es%20sobre%20os%20servi%C3%A7os%20da%20TSolu%C3%A7%C3%B5es%20Financeiras."
+                 target="_blank" rel="noopener noreferrer nofollow"
+                 referrerpolicy="no-referrer"
+                 aria-label="Falar com um consultor pelo WhatsApp">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                Falar com um consultor
+              </a>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- =========================================================
+         HERO
+         ========================================================= -->
+    <section class="ts-hero" id="inicio">
+      <div class="container">
+        <div class="row align-items-center g-5">
+
+          <div class="col-lg-6">
+            <p class="ts-eyebrow ts-eyebrow-light reveal">Correspondente bancário online</p>
+
+            <h1 class="ts-hero-title reveal">
+              Uma solução financeira mais simples para o seu negócio.
+            </h1>
+
+            <p class="ts-hero-sub reveal">
+              Negociamos crédito imobiliário, capital de giro e consórcio com instituições
+              financeiras e fundos de investimento parceiros — e enviamos propostas
+              pré-aprovadas para você.
+            </p>
+
+            <div class="d-flex flex-wrap gap-3 reveal">
+              <a href="#solucoes" class="btn ts-btn ts-btn-primary ts-btn-lg">Conheça nossas soluções</a>
+
+              <a class="btn ts-btn ts-btn-wa ts-btn-lg js-wa"
+                 href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Gostaria%20de%20obter%20informa%C3%A7%C3%B5es%20sobre%20os%20servi%C3%A7os%20da%20TSolu%C3%A7%C3%B5es%20Financeiras."
+                 target="_blank" rel="noopener noreferrer nofollow"
+                 referrerpolicy="no-referrer"
+                 aria-label="Falar com um consultor pelo WhatsApp">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                Falar com um consultor
+              </a>
+            </div>
+
+            <ul class="ts-hero-list reveal">
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                Linhas de crédito de R$ 300 mil a R$ 60 milhões
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                Atendimento executivo exclusivo
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                Consórcio sem juros
+              </li>
+            </ul>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="ts-hero-card reveal">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span class="ts-chip">Linhas de crédito</span>
+                <span class="ts-chip ts-chip-accent">Propostas pré-aprovadas</span>
+              </div>
+
+              <p class="ts-hc-label">Faixa negociada</p>
+              <p class="ts-hc-value">
+                R$ 300 mil <span class="ts-hc-sep">a</span> R$ 60 milhões
+              </p>
+
+              <hr class="ts-hc-divider">
+
+              <ul class="ts-hc-list">
+                <li>Crédito Imobiliário</li>
+                <li>Capital de Giro</li>
+                <li>Consórcio</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         QUEM SOMOS
+         ========================================================= -->
+    <section class="ts-section" id="quem-somos">
+      <div class="container">
+        <div class="row g-5 align-items-center">
+
+          <div class="col-lg-6">
+            <p class="ts-eyebrow reveal">Quem somos</p>
+            <h2 class="ts-h2 reveal">Um correspondente bancário online ao lado do seu negócio</h2>
+
+            <p class="ts-lead reveal">
+              Somos um correspondente bancário online. A partir do seu perfil, negociamos
+              créditos com instituições financeiras e fundos de investimentos parceiros e
+              enviamos propostas pré-aprovadas para você.
+            </p>
+
+            <p class="reveal">
+              Todo o processo começa pelo seu perfil: entendemos o que você precisa e levamos
+              a demanda para as instituições financeiras e fundos de investimento parceiros.
+              Depois, enviamos as propostas pré-aprovadas para você avaliar com calma.
+            </p>
+
+            <a href="#como-funciona" class="ts-link-arrow reveal">
+              Veja como funciona
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="d-grid gap-3">
+
+              <div class="ts-feature reveal">
+                <span class="ts-ico ts-ico-sm" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-5h6v5"/><path d="M9 11h.01M15 11h.01"/></svg>
+                </span>
+                <div>
+                  <h3 class="ts-h4">Instituições e fundos parceiros</h3>
+                  <p>Negociamos crédito com instituições financeiras e fundos de investimento parceiros.</p>
+                </div>
+              </div>
+
+              <div class="ts-feature reveal">
+                <span class="ts-ico ts-ico-sm" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg>
+                </span>
+                <div>
+                  <h3 class="ts-h4">Propostas pré-aprovadas</h3>
+                  <p>A partir do seu perfil, enviamos propostas pré-aprovadas para a sua análise.</p>
+                </div>
+              </div>
+
+              <div class="ts-feature reveal">
+                <span class="ts-ico ts-ico-sm" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+                <div>
+                  <h3 class="ts-h4">Atendimento executivo exclusivo</h3>
+                  <p>Um time de especialistas treinados para atender você e tirar suas dúvidas.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         SOLUÇÕES
+         ========================================================= -->
+    <section class="ts-section ts-section-soft" id="solucoes">
+      <div class="container">
+
+        <div class="ts-section-head text-center">
+          <p class="ts-eyebrow reveal">Crédito imobiliário ou capital de giro</p>
+          <h2 class="ts-h2 reveal">Nossas soluções financeiras</h2>
+          <p class="ts-lead reveal">
+            Acesse agora linhas de crédito estratégicas, de R$ 300 mil a R$ 60 milhões,
+            com condições exclusivas.
+          </p>
+        </div>
+
+        <div class="row g-4">
+
+          <div class="col-md-6 col-lg-4">
+            <article class="ts-card reveal">
+              <span class="ts-ico" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-5h6v5"/><path d="M9 11h.01M15 11h.01"/></svg>
+              </span>
+              <h3 class="ts-h3">Crédito Imobiliário</h3>
+              <p>
+                Linha de crédito negociada pela TSoluções junto a instituições financeiras
+                e fundos de investimento parceiros, com propostas pré-aprovadas enviadas
+                para você.
+              </p>
+            </article>
+          </div>
+
+          <div class="col-md-6 col-lg-4">
+            <article class="ts-card reveal">
+              <span class="ts-ico" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </span>
+              <h3 class="ts-h3">Capital de Giro</h3>
+              <p>
+                Recurso para apoiar o dia a dia da sua empresa, com negociação feita
+                diretamente junto às instituições financeiras e fundos de investimento
+                parceiros.
+              </p>
+            </article>
+          </div>
+
+          <div class="col-md-6 col-lg-4">
+            <article class="ts-card reveal">
+              <span class="ts-ico" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <h3 class="ts-h3">Consórcio</h3>
+              <p>
+                Alternativa sem juros: você só paga a taxa de administração, que é diluída
+                no prazo contratado, em parcelas que cabem no seu bolso.
+              </p>
+            </article>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         BENEFÍCIOS
+         ========================================================= -->
+    <section class="ts-section" id="beneficios">
+      <div class="container">
+
+        <div class="ts-section-head text-center">
+          <p class="ts-eyebrow reveal">Vantagens do consórcio</p>
+          <h2 class="ts-h2 reveal">Benefícios pensados para o seu negócio</h2>
+          <p class="ts-lead reveal">
+            Uma forma de planejar investimentos e expansão com mais previsibilidade
+            e sem as taxas de juros cobradas em outras modalidades.
+          </p>
+        </div>
+
+        <div class="row g-4">
+
+          <div class="col-sm-6 col-lg-3">
+            <article class="ts-card reveal">
+              <span class="ts-ico ts-ico-accent" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+              </span>
+              <h3 class="ts-h3">Sem juros</h3>
+              <p>
+                Você só paga a taxa de administração, que é diluída no prazo contratado.
+              </p>
+            </article>
+          </div>
+
+          <div class="col-sm-6 col-lg-3">
+            <article class="ts-card reveal">
+              <span class="ts-ico ts-ico-accent" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M16 13h2"/><path d="M2 10h20"/></svg>
+              </span>
+              <h3 class="ts-h3">Parcelas que cabem no seu bolso</h3>
+              <p>
+                Planejamento financeiro com parcelas compatíveis com o seu orçamento.
+              </p>
+            </article>
+          </div>
+
+          <div class="col-sm-6 col-lg-3">
+            <article class="ts-card reveal">
+              <span class="ts-ico ts-ico-accent" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+              </span>
+              <h3 class="ts-h3">Atendimento executivo exclusivo</h3>
+              <p>
+                Um time de especialistas altamente treinados que proporcionam o atendimento
+                executivo que sua empresa merece.
+              </p>
+            </article>
+          </div>
+
+          <div class="col-sm-6 col-lg-3">
+            <article class="ts-card reveal">
+              <span class="ts-ico ts-ico-accent" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+              </span>
+              <h3 class="ts-h3">Preserve seu capital de giro</h3>
+              <p>
+                Uma solução inteligente e segura, que ajuda você a controlar melhor o fluxo
+                de caixa e a ficar livre das taxas de juros de outras modalidades.
+              </p>
+            </article>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         COMO FUNCIONA
+         ========================================================= -->
+    <section class="ts-section ts-section-dark" id="como-funciona">
+      <div class="container">
+
+        <div class="ts-section-head text-center">
+          <p class="ts-eyebrow ts-eyebrow-light reveal">Como funciona</p>
+          <h2 class="ts-h2 reveal">Da conversa inicial à proposta pré-aprovada</h2>
+          <p class="ts-lead reveal" style="color: rgba(255,255,255,.72);">
+            Um caminho simples, em três passos, para encontrar a linha de crédito
+            que faz sentido para o seu momento.
+          </p>
+        </div>
+
+        <div class="row g-4 g-lg-5">
+
+          <div class="col-md-4">
+            <div class="ts-step reveal">
+              <span class="ts-step-num" aria-hidden="true">01</span>
+              <h3 class="ts-h3">Você compartilha seu perfil</h3>
+              <hr class="ts-step-line">
+              <p>
+                A partir do seu perfil, entendemos o objetivo e o tipo de crédito
+                que faz sentido para você.
+              </p>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="ts-step reveal">
+              <span class="ts-step-num" aria-hidden="true">02</span>
+              <h3 class="ts-h3">Nós negociamos com os parceiros</h3>
+              <hr class="ts-step-line">
+              <p>
+                Levamos a sua demanda para instituições financeiras e fundos de
+                investimento parceiros e negociamos as condições.
+              </p>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="ts-step reveal">
+              <span class="ts-step-num" aria-hidden="true">03</span>
+              <h3 class="ts-h3">Você recebe as propostas</h3>
+              <hr class="ts-step-line">
+              <p>
+                Enviamos propostas pré-aprovadas para que você avalie com calma
+                e siga com o atendimento.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="text-center mt-5 reveal">
+          <a class="btn ts-btn ts-btn-wa ts-btn-lg js-wa"
+             href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Gostaria%20de%20obter%20informa%C3%A7%C3%B5es%20sobre%20os%20servi%C3%A7os%20da%20TSolu%C3%A7%C3%B5es%20Financeiras."
+             target="_blank" rel="noopener noreferrer nofollow"
+             referrerpolicy="no-referrer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+            Quero falar com um consultor
+          </a>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =========================================================
+         FAQ
+         ========================================================= -->
+    <section class="ts-section" id="faq">
+      <div class="container">
+
+        <div class="ts-section-head text-center">
+          <p class="ts-eyebrow reveal">Dúvidas frequentes</p>
+          <h2 class="ts-h2 reveal">Informações importantes antes de começar</h2>
+        </div>
+
+        <div class="row justify-content-center">
+          <div class="col-lg-9">
+            <div class="accordion ts-accordion reveal" id="tsFaq">
+
+              <div class="accordion-item">
+                <h3 class="accordion-header" id="faqH1">
+                  <button class="accordion-button collapsed" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#faqB1"
+                          aria-expanded="false" aria-controls="faqB1">
+                    O que a TSoluções Financeiras faz?
+                  </button>
+                </h3>
+                <div id="faqB1" class="accordion-collapse collapse"
+                     aria-labelledby="faqH1" data-bs-parent="#tsFaq">
+                  <div class="accordion-body">
+                    Somos um correspondente bancário online. A partir do seu perfil, negociamos
+                    créditos com instituições financeiras e fundos de investimentos parceiros e
+                    enviamos propostas pré-aprovadas para você.
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <h3 class="accordion-header" id="faqH2">
+                  <button class="accordion-button collapsed" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#faqB2"
+                          aria-expanded="false" aria-controls="faqB2">
+                    Quais linhas de crédito estão disponíveis?
+                  </button>
+                </h3>
+                <div id="faqB2" class="accordion-collapse collapse"
+                     aria-labelledby="faqH2" data-bs-parent="#tsFaq">
+                  <div class="accordion-body">
+                    Trabalhamos com crédito imobiliário, capital de giro e consórcio.
+                    As linhas de crédito estratégicas vão de R$ 300 mil a R$ 60 milhões,
+                    com condições exclusivas.
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <h3 class="accordion-header" id="faqH3">
+                  <button class="accordion-button collapsed" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#faqB3"
+                          aria-expanded="false" aria-controls="faqB3">
+                    Como funciona o processo de negociação?
+                  </button>
+                </h3>
+                <div id="faqB3" class="accordion-collapse collapse"
+                     aria-labelledby="faqH3" data-bs-parent="#tsFaq">
+                  <div class="accordion-body">
+                    Você compartilha o seu perfil, nós levamos a demanda para instituições
+                    financeiras e fundos de investimento parceiros e enviamos as propostas
+                    pré-aprovadas para você.
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <h3 class="accordion-header" id="faqH4">
+                  <button class="accordion-button collapsed" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#faqB4"
+                          aria-expanded="false" aria-controls="faqB4">
+                    O consórcio tem juros?
+                  </button>
+                </h3>
+                <div id="faqB4" class="accordion-collapse collapse"
+                     aria-labelledby="faqH4" data-bs-parent="#tsFaq">
+                  <div class="accordion-body">
+                    Não. No consórcio você só paga a taxa de administração, que é diluída
+                    no prazo contratado, em parcelas que cabem no seu bolso.
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <h3 class="accordion-header" id="faqH5">
+                  <button class="accordion-button collapsed" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#faqB5"
+                          aria-expanded="false" aria-controls="faqB5">
+                    Quais são as vantagens do consórcio para a empresa?
+                  </button>
+                </h3>
+                <div id="faqB5" class="accordion-collapse collapse"
+                     aria-labelledby="faqH5" data-bs-parent="#tsFaq">
+                  <div class="accordion-body">
+                    O consórcio é uma solução inteligente e segura que ajuda você a não parar
+                    com os investimentos e com a expansão do seu negócio. Com ele é possível
+                    preservar o capital de giro, controlar melhor o fluxo de caixa e ficar
+                    livre das taxas de juros cobradas em outras modalidades.
+                  </div>
+                </div>
+              </div>
+
+              <div class="accordion-item">
+                <h3 class="accordion-header" id="faqH6">
+                  <button class="accordion-button collapsed" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#faqB6"
+                          aria-expanded="false" aria-controls="faqB6">
+                    Como faço para falar com a TSoluções Financeiras?
+                  </button>
+                </h3>
+                <div id="faqB6" class="accordion-collapse collapse"
+                     aria-labelledby="faqH6" data-bs-parent="#tsFaq">
+                  <div class="accordion-body">
+                    Clique em qualquer botão verde "Falar com um consultor" nesta página.
+                    Uma conversa será aberta diretamente no WhatsApp com a nossa equipe,
+                    já com uma mensagem inicial preenchida. Sem formulários, sem espera.
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =========================================================
+         CONTATO — CONVERSA DIRETA NO WHATSAPP
+         ========================================================= -->
+    <section class="ts-section ts-section-soft" id="contato">
+      <div class="container">
+        <div class="row g-5 align-items-start">
+
+          <div class="col-lg-5">
+            <p class="ts-eyebrow reveal">Contato</p>
+            <h2 class="ts-h2 reveal">Entre em contato agora e faça do seu sonho uma realidade.</h2>
+            <p class="ts-lead reveal">
+              Entre em contato conosco, vamos conversar sobre seu projeto.
+            </p>
+
+            <ul class="ts-contact-list">
+              <li class="reveal">
+                <span class="ts-ico ts-ico-sm" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
+                </span>
+                <div>
+                  <strong>Atendimento online</strong>
+                  <span>Somos um correspondente bancário online: o primeiro contato é feito pelo WhatsApp.</span>
+                </div>
+              </li>
+
+              <li class="reveal">
+                <span class="ts-ico ts-ico-sm" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+                </span>
+                <div>
+                  <strong>Atendimento executivo exclusivo</strong>
+                  <span>Um time de especialistas treinados para tirar suas dúvidas e apresentar as melhores opções.</span>
+                </div>
+              </li>
+
+              <li class="reveal">
+                <span class="ts-ico ts-ico-sm" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                </span>
+                <div>
+                  <strong>Propostas pré-aprovadas</strong>
+                  <span>Nós negociamos com os parceiros e enviamos as propostas pré-aprovadas para você.</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="ts-wa-card reveal">
+              <div class="ts-wa-badge" aria-hidden="true">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+              </div>
+
+              <h3>Inicie uma conversa pelo WhatsApp</h3>
+              <p class="ts-wa-desc">
+                Sem formulários. Clique no botão abaixo e fale agora mesmo com nossa equipe
+                de atendimento executivo. Já deixamos uma mensagem pronta para você.
+              </p>
+
+              <a class="btn ts-btn ts-btn-wa ts-btn-lg js-wa w-100"
+                 href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Gostaria%20de%20obter%20informa%C3%A7%C3%B5es%20sobre%20os%20servi%C3%A7os%20da%20TSolu%C3%A7%C3%B5es%20Financeiras."
+                 target="_blank" rel="noopener noreferrer nofollow"
+                 referrerpolicy="no-referrer"
+                 aria-label="Iniciar conversa com a TSoluções Financeiras no WhatsApp">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                Iniciar conversa no WhatsApp
+              </a>
+
+              <p class="ts-wa-note">
+                Ao clicar, você será redirecionado para o WhatsApp com a mensagem já preenchida:
+                “Olá! Gostaria de obter informações sobre os serviços da TSoluções Financeiras.”
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =========================================================
+       FOOTER
+       ========================================================= -->
+  <footer class="ts-footer">
+    <div class="container">
+
+      <div class="row g-4">
+
+        <div class="col-lg-5">
+          <a class="ts-brand" href="#inicio" aria-label="TSoluções Financeiras — ir para o início">
+            <img
+              src="https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg?stp=c191.191.1666.1666a_dst-jpg_tt6&amp;cstp=mx1666x1666&amp;ctp=s200x200&amp;_nc_cat=107&amp;_nc_map=urlgen_bucketless&amp;ccb=1-7&amp;_nc_sid=2d3e12&amp;_nc_ohc=QAYDD-Iog1cQ7kNvwGtMla4&amp;_nc_oc=AdpEH-Ju0izydy4nAgXyMtOVDZp-PUsl5LcB4TDBaKGbwiK61t94Q_FdmeloC7y9Gyc&amp;_nc_zt=24&amp;_nc_ht=scontent.ffec7-1.fna&amp;_nc_gid=5FdniabyTT880GG-qgKDaA&amp;_nc_ss=7b289&amp;oh=00_AQKhyqugqHG5Z-Cy38LrqPhJL71tA21o_127KyNp59UdUQ&amp;oe=6AB8A1D6"
+              alt="Logotipo TSoluções Financeiras"
+              class="ts-brand-logo"
+              width="56" height="56"
+              loading="lazy"
+              decoding="async"
+              referrerpolicy="no-referrer">
+            <span class="ts-brand-text">
+              <strong>TSoluções</strong>
+              <small>Financeiras</small>
+            </span>
+          </a>
+          <p style="max-width: 22rem;">
+            Correspondente bancário online. Negociamos crédito imobiliário, capital de giro
+            e consórcio com instituições financeiras e fundos de investimento parceiros.
+          </p>
+
+          <ul class="ts-social">
+            <li>
+              <a href="https://facebook.com/Bargaca10" target="_blank"
+                 rel="noopener noreferrer nofollow" referrerpolicy="no-referrer"
+                 aria-label="Facebook da TSoluções Financeiras">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+              </a>
+            </li>
+            <li>
+              <a href="https://instagram.com/#" target="_blank"
+                 rel="noopener noreferrer nofollow" referrerpolicy="no-referrer"
+                 aria-label="Instagram da TSoluções Financeiras">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><line x1="17.5" y1="6.5" x2="17.5" y2="6.5"/></svg>
+              </a>
+            </li>
+            <li>
+              <a href="https://twitter.com/#" target="_blank"
+                 rel="noopener noreferrer nofollow" referrerpolicy="no-referrer"
+                 aria-label="Twitter da TSoluções Financeiras">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg>
+              </a>
+            </li>
+            <li>
+              <a href="https://linkedin.com/#" target="_blank"
+                 rel="noopener noreferrer nofollow" referrerpolicy="no-referrer"
+                 aria-label="LinkedIn da TSoluções Financeiras">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="col-6 col-lg-2 offset-lg-1">
+          <h4>Navegação</h4>
+          <ul class="ts-footer-links">
+            <li><a href="#inicio">Início</a></li>
+            <li><a href="#quem-somos">Quem somos</a></li>
+            <li><a href="#solucoes">Soluções</a></li>
+            <li><a href="#beneficios">Benefícios</a></li>
+          </ul>
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <h4>Soluções</h4>
+          <ul class="ts-footer-links">
+            <li><a href="#solucoes">Crédito Imobiliário</a></li>
+            <li><a href="#solucoes">Capital de Giro</a></li>
+            <li><a href="#solucoes">Consórcio</a></li>
+            <li><a href="#faq">Dúvidas frequentes</a></li>
+          </ul>
+        </div>
+
+        <div class="col-12 col-lg-2">
+          <h4>Contato</h4>
+          <ul class="ts-footer-links">
+            <li>
+              <a class="js-wa"
+                 href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Gostaria%20de%20obter%20informa%C3%A7%C3%B5es%20sobre%20os%20servi%C3%A7os%20da%20TSolu%C3%A7%C3%B5es%20Financeiras."
+                 target="_blank" rel="noopener noreferrer nofollow"
+                 referrerpolicy="no-referrer">
+                Conversar no WhatsApp
+              </a>
+            </li>
+            <li><a href="#como-funciona">Como funciona</a></li>
+          </ul>
+        </div>
+
+      </div>
+
+      <hr>
+
+      <div class="ts-footer-bottom d-flex flex-column flex-md-row justify-content-between gap-2">
+        <p class="mb-0">&copy; <span id="tsAno">2026</span> TSoluções Financeiras. Todos os direitos reservados.</p>
+        <p class="mb-0">Correspondente bancário online.</p>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Botão flutuante do WhatsApp -->
+  <a class="ts-wa-float js-wa"
+     href="https://wa.me/5511999999999?text=Ol%C3%A1%21%20Gostaria%20de%20obter%20informa%C3%A7%C3%B5es%20sobre%20os%20servi%C3%A7os%20da%20TSolu%C3%A7%C3%B5es%20Financeiras."
+     target="_blank" rel="noopener noreferrer nofollow"
+     referrerpolicy="no-referrer"
+     aria-label="Conversar agora com a TSoluções Financeiras no WhatsApp">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+  </a>
+
+  <!-- Bootstrap 5 com SRI -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+          crossorigin="anonymous"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* =====================================================
+         0. SEGURANÇA — Frame-busting (segunda camada)
+         A primeira camada roda no <head>. Esta é apenas uma
+         redundância caso o <head> seja contornado.
+         Ignora file:// (origem única) e respeita ambiente produtivo.
+         ===================================================== */
+      if (location.protocol !== 'file:' && window.top !== window.self) {
+        document.documentElement.style.display = 'none';
+        try { window.top.location = window.self.location.href; } catch (e) {}
+        return;
+      }
+
+      /* =====================================================
+         1. CONFIGURAÇÃO DO WHATSAPP
+         Altere APENAS aqui o número e a mensagem padrão.
+         Formato: 55 + DDD + número (somente dígitos).
+         ===================================================== */
+      var WA_NUMBER = '5511999999999';
+      var WA_MESSAGE = 'Olá! Gostaria de obter informações sobre os serviços da TSoluções Financeiras.';
+
+      // Sanitização: garante que o número contém apenas dígitos
+      if (!/^\d{10,15}$/.test(WA_NUMBER)) {
+        console.error('WA_NUMBER inválido. Use apenas dígitos (55 + DDD + número).');
+        return;
+      }
+
+      var WA_URL = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(WA_MESSAGE);
+
+      // Atualiza todos os links .js-wa com a URL canônica
+      document.querySelectorAll('.js-wa').forEach(function (el) {
+        el.setAttribute('href', WA_URL);
+      });
+
+      /* =====================================================
+         2. NAVBAR — fundo sólido ao rolar
+         ===================================================== */
+      var nav = document.getElementById('tsNav');
+
+      function updateNav() {
+        if (!nav) return;
+        if (window.scrollY > 40) {
+          nav.classList.add('is-scrolled');
+        } else {
+          nav.classList.remove('is-scrolled');
+        }
+      }
+      updateNav();
+      window.addEventListener('scroll', updateNav, { passive: true });
+
+      /* =====================================================
+         3. MENU MOBILE — fecha ao clicar em um link
+         ===================================================== */
+      var navMenu = document.getElementById('tsNavMenu');
+
+      if (navMenu) {
+        navMenu.addEventListener('show.bs.collapse', function () {
+          nav.classList.add('is-open');
+        });
+
+        navMenu.addEventListener('hidden.bs.collapse', function () {
+          nav.classList.remove('is-open');
+        });
+
+        navMenu.querySelectorAll('a').forEach(function (link) {
+          link.addEventListener('click', function () {
+            if (navMenu.classList.contains('show') && typeof bootstrap !== 'undefined') {
+              var instance = bootstrap.Collapse.getInstance(navMenu);
+              if (instance) instance.hide();
+            }
+          });
+        });
+      }
+
+      /* =====================================================
+         4. ANIMAÇÕES DE ENTRADA (reveal)
+         ===================================================== */
+      var revealElements = document.querySelectorAll('.reveal');
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (reduceMotion || !('IntersectionObserver' in window)) {
+        revealElements.forEach(function (el) { el.classList.add('is-visible'); });
+      } else {
+        var revealObserver = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+
+        revealElements.forEach(function (el) {
+          var parent = el.parentElement;
+          if (parent) {
+            var siblings = Array.prototype.filter.call(parent.children, function (child) {
+              return child.classList.contains('reveal');
+            });
+            var index = siblings.indexOf(el);
+            if (index > 0) {
+              el.style.transitionDelay = Math.min(index, 4) * 80 + 'ms';
+            }
+          }
+          revealObserver.observe(el);
+        });
+      }
+
+      /* =====================================================
+         5. LINK ATIVO NA NAVBAR CONFORME A SEÇÃO VISÍVEL
+         ===================================================== */
+      var sections = document.querySelectorAll('main section[id]');
+      var navLinks = document.querySelectorAll('.ts-nav .nav-link[href^="#"]');
+
+      if ('IntersectionObserver' in window && sections.length && navLinks.length) {
+        var spyObserver = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              var id = '#' + entry.target.id;
+              navLinks.forEach(function (link) {
+                link.classList.toggle('active', link.getAttribute('href') === id);
+              });
+            }
+          });
+        }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+
+        sections.forEach(function (section) { spyObserver.observe(section); });
+      }
+
+      /* =====================================================
+         6. ANO ATUAL NO RODAPÉ
+         ===================================================== */
+      var yearEl = document.getElementById('tsAno');
+      if (yearEl) {
+        yearEl.textContent = new Date().getFullYear();
+      }
+
+    })();
+  </script>
+
+  <!-- Dados estruturados (SEO) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FinancialService",
+    "name": "TSoluções Financeiras",
+    "description": "Correspondente bancário online. Negociamos crédito imobiliário, capital de giro e consórcio com instituições financeiras e fundos de investimento parceiros.",
+    "url": "https://tsolucoesfinanceiras.com.br/",
+    "areaServed": "BR"
+  }
+  </script>
+
+</body>
+</html>
