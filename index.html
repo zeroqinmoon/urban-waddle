@@ -6,26 +6,27 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
   <!-- =========================================================
-       SEGURANÇA — FRAME-BUSTING ANTECIPADO
-       Executado ANTES de qualquer renderização. Se a página
-       estiver dentro de um iframe (clickjacking), todo o
-       conteúdo é ocultado imediatamente e o topo é redirecionado.
-       A checagem de protocolo 'file:' evita falsos positivos
-       quando o arquivo é aberto localmente (duplo clique).
+       SEGURANÇA — FRAME-BUSTING E LIMPEZA DE window.name
+       Executado ANTES de qualquer renderização.
+       - Se a página estiver dentro de um iframe (clickjacking),
+         o conteúdo é ocultado imediatamente.
+       - window.name é zerado para evitar rastreamento cross-origin
+         (vulnerabilidade conhecida em Safari/Chrome antigos).
+       - A checagem de protocolo 'file:' evita falsos positivos
+         quando o arquivo é aberto localmente (duplo clique).
        ========================================================= -->
   <script>
     (function () {
       try {
-        // Em file:// cada página é tratada como origem única pelo navegador,
-        // o que dispara falsos positivos no frame-busting. Ignorar nesse caso.
+        // Limpa window.name (anti-tracking cross-origin)
+        try { if (window.name) { window.name = ''; } } catch (e) {}
+
+        // Ignora file:// (origem única) para não disparar falso positivo
         if (location.protocol === 'file:') return;
 
         if (window.top !== window.self) {
-          // Estamos em iframe malicioso — esconder o conteúdo
           document.documentElement.style.display = 'none';
-          // Tentar quebrar o frame (funciona apenas same-origin)
           try { window.top.location = window.self.location.href; } catch (e) {}
-          // Fallback para cross-origin: substituir o próprio frame pelo topo
           try { window.self.location = window.self.location.href; } catch (e) {}
         }
       } catch (e) { /* silencioso */ }
@@ -35,10 +36,7 @@
   <!-- =========================================================
        SEGURANÇA — CONFIGURAÇÃO DO SERVIDOR (obrigatória em produção)
        -------------------------------------------------------------
-       Estes cabeçalhos NÃO podem ser aplicados via HTML. Configure
-       no servidor web / CDN / reverse-proxy.
-
-       --- Nginx ---
+       Nginx:
          add_header Strict-Transport-Security  "max-age=63072000; includeSubDomains; preload" always;
          add_header X-Content-Type-Options     "nosniff" always;
          add_header X-Frame-Options            "DENY" always;
@@ -46,10 +44,12 @@
          add_header Permissions-Policy         "geolocation=(), microphone=(), camera=(), payment=(), usb=()" always;
          add_header Cross-Origin-Opener-Policy "same-origin" always;
          add_header Cross-Origin-Resource-Policy "same-origin" always;
-         add_header Content-Security-Policy    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests;" always;
+         add_header Cross-Origin-Embedder-Policy "require-corp" always;
+         add_header X-XSS-Protection            "0" always;  # desativa auditor legado
+         add_header Content-Security-Policy    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; worker-src 'none'; media-src 'none'; manifest-src 'self'; upgrade-insecure-requests;" always;
          server_tokens off;
 
-       --- Apache (.htaccess) ---
+       Apache (.htaccess):
          Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
          Header always set X-Content-Type-Options "nosniff"
          Header always set X-Frame-Options "DENY"
@@ -57,27 +57,19 @@
          Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
          Header always set Cross-Origin-Opener-Policy "same-origin"
          Header always set Cross-Origin-Resource-Policy "same-origin"
-         Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests;"
+         Header always set Cross-Origin-Embedder-Policy "require-corp"
+         Header always set X-XSS-Protection "0"
+         Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; worker-src 'none'; media-src 'none'; manifest-src 'self'; upgrade-insecure-requests;"
          ServerTokens Prod
          ServerSignature Off
-
-       --- Rate limiting (Nginx) ---
-         limit_req_zone $binary_remote_addr zone=ts_zone:10m rate=20r/s;
-         limit_req zone=ts_zone burst=40 nodelay;
-         limit_conn_zone $binary_remote_addr zone=ts_conn:10m;
-         limit_conn ts_conn 30;
        ========================================================= -->
 
   <!-- =========================================================
        CSP (camada de defesa no HTML)
-       Observações importantes:
-         • frame-ancestors, report-uri e sandbox são IGNORADOS em <meta>.
-           Devem vir por header HTTP (ver bloco acima).
-         • script-src-attr 'none' bloqueia handlers inline (onclick=...).
-         • upgrade-insecure-requests força HTTPS em sub-recursos.
-         • connect-src inclui cdn.jsdelivr.net para permitir que o
-           DevTools baixe os source maps (.map) do Bootstrap sem
-           gerar erros de CSP no console.
+       Diretivas adicionadas nesta versão:
+         • worker-src 'none'        — bloqueia Web Workers maliciosos
+         • media-src 'none'         — bloqueia injeção de áudio/vídeo
+         • manifest-src 'self'      — restringe manifest hijacking
        ========================================================= -->
   <meta http-equiv="Content-Security-Policy"
         content="
@@ -91,6 +83,9 @@
           form-action 'self';
           base-uri 'self';
           object-src 'none';
+          worker-src 'none';
+          media-src 'none';
+          manifest-src 'self';
           upgrade-insecure-requests;
         ">
 
@@ -99,32 +94,57 @@
   <meta name="format-detection" content="telephone=no,email=no,address=no">
   <meta name="color-scheme" content="light">
 
-  <!-- SEO -->
-  <title>TSoluções Financeiras | Crédito Imobiliário, Capital de Giro e Consórcio</title>
-  <meta name="description" content="A TSoluções Financeiras é um correspondente bancário online. Negociamos crédito imobiliário, capital de giro e consórcio com instituições financeiras e fundos de investimento parceiros e enviamos propostas pré-aprovadas para você.">
+  <!-- =========================================================
+       SEO
+       ========================================================= -->
+  <title>TSoluções Financeiras | Correspondente Bancário Online — Crédito Imobiliário, Capital de Giro e Consórcio</title>
+  <meta name="description" content="TSoluções Financeiras é um correspondente bancário online. Negociamos crédito imobiliário, capital de giro e consórcio com instituições financeiras e fundos de investimento parceiros. Linhas de R$ 300 mil a R$ 60 milhões. Fale conosco pelo WhatsApp.">
+  <meta name="keywords" content="T Soluções Financeiras, TSoluções, TSoluções Financeiras, correspondente bancário online, crédito imobiliário, capital de giro, consórcio, propostas pré-aprovadas, crédito empresarial, financiamento imobiliário, consórcio sem juros">
   <meta name="author" content="TSoluções Financeiras">
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+  <meta name="googlebot" content="index, follow">
+  <meta name="bingbot" content="index, follow">
   <meta name="theme-color" content="#0b2545">
   <link rel="canonical" href="https://tsolucoesfinanceiras.com.br/">
+
+  <meta name="geo.region" content="BR">
+  <meta name="geo.placename" content="Brasil">
+  <meta name="language" content="pt-BR">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
   <meta property="og:site_name" content="TSoluções Financeiras">
-  <meta property="og:title" content="TSoluções Financeiras | Soluções de crédito para o seu negócio">
-  <meta property="og:description" content="Correspondente bancário online. Crédito imobiliário, capital de giro e consórcio, com linhas de R$ 300 mil a R$ 60 milhões.">
+  <meta property="og:title" content="TSoluções Financeiras | Correspondente Bancário Online">
+  <meta property="og:description" content="Crédito imobiliário, capital de giro e consórcio com instituições financeiras parceiras. Linhas de R$ 300 mil a R$ 60 milhões. Fale conosco pelo WhatsApp.">
   <meta property="og:url" content="https://tsolucoesfinanceiras.com.br/">
+  <meta property="og:image" content="https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg">
+  <meta property="og:image:width" content="1666">
+  <meta property="og:image:height" content="1666">
+  <meta property="og:image:alt" content="Logotipo TSoluções Financeiras">
 
-  <!-- Favicon inline -->
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TSoluções Financeiras | Correspondente Bancário Online">
+  <meta name="twitter:description" content="Crédito imobiliário, capital de giro e consórcio com instituições financeiras parceiras. Fale conosco pelo WhatsApp.">
+  <meta name="twitter:image" content="https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg">
+  <meta name="twitter:image:alt" content="Logotipo TSoluções Financeiras">
+
+  <!-- Favicon -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%230b2545'/><text x='50' y='70' font-size='50' font-family='Arial,sans-serif' font-weight='bold' fill='%23d97b2e' text-anchor='middle'>TS</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%230b2545'/><text x='50' y='70' font-size='50' font-family='Arial,sans-serif' font-weight='bold' fill='%23d97b2e' text-anchor='middle'>TS</text></svg>">
 
-  <!-- Tipografia -->
+  <!-- Performance -->
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
         rel="stylesheet" crossorigin="anonymous">
 
-  <!-- Bootstrap 5 com Subresource Integrity (SRI) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
@@ -168,6 +188,8 @@
     html {
       scroll-behavior: smooth;
       scroll-padding-top: 84px;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
     }
 
     body {
@@ -177,6 +199,7 @@
       font-size: 1rem;
       line-height: 1.7;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
       overflow-x: hidden;
     }
 
@@ -186,6 +209,7 @@
       letter-spacing: -.02em;
       line-height: 1.18;
       margin-bottom: .75rem;
+      text-wrap: balance;
     }
 
     p { margin-bottom: 1rem; }
@@ -202,7 +226,41 @@
     }
 
     /* =========================================================
-       3. TIPOGRAFIA UTILITÁRIA
+       3. SKIP LINK — visível apenas em foco (acessibilidade)
+       ========================================================= */
+    .ts-skip-link {
+      position: fixed;
+      top: -100px;
+      left: 0;
+      z-index: 9999;
+      padding: .85rem 1.25rem;
+      background: var(--ts-navy-800);
+      color: #fff;
+      font-weight: 600;
+      font-size: .95rem;
+      border-radius: 0 0 12px 0;
+      box-shadow: 0 8px 24px rgba(8, 26, 47, .3);
+      transition: top .25s ease;
+    }
+    .ts-skip-link:focus {
+      top: 0;
+      color: #fff;
+      outline: none;
+    }
+
+    /* Texto visível apenas para leitores de tela (não confundir com skip link) */
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* =========================================================
+       4. TIPOGRAFIA UTILITÁRIA
        ========================================================= */
     .ts-h2 { font-size: clamp(1.75rem, 1.1rem + 2.4vw, 2.6rem); }
     .ts-h3 { font-size: clamp(1.15rem, 1rem + .5vw, 1.35rem); font-weight: 700; }
@@ -227,7 +285,7 @@
     .ts-eyebrow-light { color: #8ecbf0; }
 
     /* =========================================================
-       4. LAYOUT DE SEÇÃO
+       5. LAYOUT DE SEÇÃO
        ========================================================= */
     .ts-section {
       padding: clamp(3.75rem, 2rem + 6vw, 7rem) 0;
@@ -252,11 +310,14 @@
     }
 
     /* =========================================================
-       5. BOTÕES
+       6. BOTÕES
        ========================================================= */
     .ts-btn {
+      display: -webkit-inline-flex;
       display: inline-flex;
+      -webkit-align-items: center;
       align-items: center;
+      -webkit-justify-content: center;
       justify-content: center;
       gap: .55rem;
       border-radius: 999px;
@@ -264,9 +325,13 @@
       font-size: .97rem;
       padding: .8rem 1.6rem;
       border: 1px solid transparent;
+      -webkit-transition: -webkit-transform .25s ease, box-shadow .25s ease,
+                  background-color .25s ease, color .25s ease, border-color .25s ease;
       transition: transform .25s ease, box-shadow .25s ease,
                   background-color .25s ease, color .25s ease, border-color .25s ease;
       white-space: nowrap;
+      cursor: pointer;
+      text-align: center;
     }
 
     .ts-btn-lg { padding: 1rem 2rem; font-size: 1.03rem; }
@@ -280,6 +345,7 @@
     .ts-btn-primary:focus {
       background: #155c9c;
       color: #fff;
+      -webkit-transform: translateY(-2px);
       transform: translateY(-2px);
       box-shadow: 0 16px 32px rgba(29, 111, 184, .34);
     }
@@ -294,6 +360,7 @@
       background: rgba(255, 255, 255, .12);
       color: #fff;
       border-color: rgba(255, 255, 255, .7);
+      -webkit-transform: translateY(-2px);
       transform: translateY(-2px);
     }
 
@@ -306,22 +373,26 @@
     .ts-btn-wa:focus {
       background: var(--ts-wa-dark);
       color: #fff;
+      -webkit-transform: translateY(-2px);
       transform: translateY(-2px);
       box-shadow: 0 16px 34px rgba(37, 211, 102, .45);
     }
 
     .ts-link-arrow {
+      display: -webkit-inline-flex;
       display: inline-flex;
+      -webkit-align-items: center;
       align-items: center;
       gap: .45rem;
       font-weight: 600;
       color: var(--ts-blue);
+      -webkit-transition: gap .25s ease, color .25s ease;
       transition: gap .25s ease, color .25s ease;
     }
     .ts-link-arrow:hover { gap: .75rem; color: #155c9c; }
 
     /* =========================================================
-       6. NAVBAR
+       7. NAVBAR
        ========================================================= */
     .ts-nav {
       position: fixed;
@@ -329,6 +400,7 @@
       z-index: 1040;
       padding: .85rem 0;
       background: transparent;
+      -webkit-transition: background-color .35s ease, box-shadow .35s ease, padding .35s ease;
       transition: background-color .35s ease, box-shadow .35s ease, padding .35s ease;
     }
 
@@ -341,10 +413,13 @@
     }
 
     .ts-brand {
+      display: -webkit-inline-flex;
       display: inline-flex;
+      -webkit-align-items: center;
       align-items: center;
       gap: .7rem;
       color: #fff;
+      -webkit-transition: color .3s ease;
       transition: color .3s ease;
     }
 
@@ -352,10 +427,13 @@
       width: 52px;
       height: 52px;
       border-radius: 50%;
+      -o-object-fit: cover;
       object-fit: cover;
+      -webkit-flex: 0 0 auto;
       flex: 0 0 auto;
       background: var(--ts-navy-800);
       box-shadow: 0 6px 16px rgba(0, 0, 0, .22);
+      -webkit-transition: width .3s ease, height .3s ease;
       transition: width .3s ease, height .3s ease;
     }
 
@@ -365,7 +443,9 @@
     }
 
     .ts-brand-text {
+      display: -webkit-flex;
       display: flex;
+      -webkit-flex-direction: column;
       flex-direction: column;
       line-height: 1.05;
     }
@@ -389,6 +469,7 @@
       font-size: .95rem;
       padding: .5rem .85rem;
       border-radius: 10px;
+      -webkit-transition: color .25s ease, background-color .25s ease;
       transition: color .25s ease, background-color .25s ease;
     }
     .ts-nav .nav-link:hover,
@@ -405,12 +486,18 @@
       border: 0;
       background: transparent;
       color: #fff;
+      display: -webkit-inline-flex;
       display: inline-flex;
+      -webkit-flex-direction: column;
       flex-direction: column;
+      -webkit-align-items: center;
       align-items: center;
+      -webkit-justify-content: center;
       justify-content: center;
       gap: 5px;
       border-radius: 12px;
+      cursor: pointer;
+      -webkit-transition: color .3s ease, background-color .25s ease;
       transition: color .3s ease, background-color .25s ease;
     }
     .ts-toggler:hover { background: rgba(255, 255, 255, .1); }
@@ -420,11 +507,12 @@
       height: 2px;
       border-radius: 2px;
       background: currentColor;
+      -webkit-transition: -webkit-transform .3s ease, opacity .3s ease;
       transition: transform .3s ease, opacity .3s ease;
     }
-    .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(1) { -webkit-transform: translateY(7px) rotate(45deg); transform: translateY(7px) rotate(45deg); }
     .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(2) { opacity: 0; }
-    .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .ts-toggler[aria-expanded="true"] .ts-toggler-bar:nth-child(3) { -webkit-transform: translateY(-7px) rotate(-45deg); transform: translateY(-7px) rotate(-45deg); }
 
     .ts-nav.is-scrolled .ts-toggler { color: var(--ts-navy-800); }
 
@@ -458,7 +546,7 @@
     }
 
     /* =========================================================
-       7. HERO
+       8. HERO
        ========================================================= */
     .ts-hero {
       position: relative;
@@ -508,18 +596,22 @@
       list-style: none;
       padding: 0;
       margin: 2.5rem 0 0;
+      display: -webkit-flex;
       display: flex;
+      -webkit-flex-wrap: wrap;
       flex-wrap: wrap;
       gap: .6rem 1.75rem;
       font-size: .93rem;
       color: rgba(255, 255, 255, .72);
     }
     .ts-hero-list li {
+      display: -webkit-flex;
       display: flex;
+      -webkit-align-items: center;
       align-items: center;
       gap: .5rem;
     }
-    .ts-hero-list svg { flex: 0 0 auto; color: var(--ts-blue-600); }
+    .ts-hero-list svg { -webkit-flex: 0 0 auto; flex: 0 0 auto; color: var(--ts-blue-600); }
 
     .ts-hero-card {
       background: rgba(255, 255, 255, .07);
@@ -532,7 +624,9 @@
     }
 
     .ts-chip {
+      display: -webkit-inline-flex;
       display: inline-flex;
+      -webkit-align-items: center;
       align-items: center;
       gap: .4rem;
       font-size: .74rem;
@@ -567,6 +661,7 @@
       letter-spacing: -.02em;
       line-height: 1.25;
       margin-bottom: 0;
+      word-break: break-word;
     }
     .ts-hc-sep { color: var(--ts-accent); font-weight: 600; }
 
@@ -585,7 +680,9 @@
       gap: .55rem;
     }
     .ts-hc-list li {
+      display: -webkit-flex;
       display: flex;
+      -webkit-align-items: center;
       align-items: center;
       gap: .65rem;
       font-size: .95rem;
@@ -597,11 +694,12 @@
       height: 7px;
       border-radius: 50%;
       background: var(--ts-accent);
+      -webkit-flex: 0 0 auto;
       flex: 0 0 auto;
     }
 
     /* =========================================================
-       8. CARDS
+       9. CARDS
        ========================================================= */
     .ts-card {
       height: 100%;
@@ -610,10 +708,13 @@
       border-radius: var(--ts-radius);
       padding: clamp(1.5rem, 1.1rem + 1vw, 2rem);
       box-shadow: var(--ts-shadow-sm);
+      -webkit-transition: -webkit-transform .35s cubic-bezier(.22, .61, .36, 1),
+                  box-shadow .35s ease, border-color .35s ease;
       transition: transform .35s cubic-bezier(.22, .61, .36, 1),
                   box-shadow .35s ease, border-color .35s ease;
     }
     .ts-card:hover {
+      -webkit-transform: translateY(-6px);
       transform: translateY(-6px);
       box-shadow: var(--ts-shadow);
       border-color: #cfe2f2;
@@ -630,6 +731,7 @@
       background: var(--ts-blue-100);
       color: var(--ts-blue);
       margin-bottom: 1.15rem;
+      -webkit-flex: 0 0 auto;
       flex: 0 0 auto;
     }
 
@@ -646,7 +748,9 @@
     }
 
     .ts-feature {
+      display: -webkit-flex;
       display: flex;
+      -webkit-align-items: flex-start;
       align-items: flex-start;
       gap: 1rem;
       background: #fff;
@@ -654,10 +758,13 @@
       border-radius: var(--ts-radius);
       padding: 1.35rem;
       box-shadow: var(--ts-shadow-sm);
+      -webkit-transition: -webkit-transform .35s cubic-bezier(.22, .61, .36, 1),
+                  box-shadow .35s ease, border-color .35s ease;
       transition: transform .35s cubic-bezier(.22, .61, .36, 1),
                   box-shadow .35s ease, border-color .35s ease;
     }
     .ts-feature:hover {
+      -webkit-transform: translateY(-4px);
       transform: translateY(-4px);
       box-shadow: var(--ts-shadow);
       border-color: #cfe2f2;
@@ -669,13 +776,16 @@
     }
 
     /* =========================================================
-       9. COMO FUNCIONA
+       10. COMO FUNCIONA
        ========================================================= */
     .ts-step { height: 100%; }
 
     .ts-step-num {
+      display: -webkit-inline-flex;
       display: inline-flex;
+      -webkit-align-items: center;
       align-items: center;
+      -webkit-justify-content: center;
       justify-content: center;
       width: 54px;
       height: 54px;
@@ -702,7 +812,7 @@
     }
 
     /* =========================================================
-       10. ACCORDION FAQ
+       11. ACCORDION FAQ
        ========================================================= */
     .ts-accordion .accordion-item {
       border: 1px solid var(--ts-line);
@@ -732,6 +842,7 @@
       background-size: 1rem;
       width: 1rem;
       height: 1rem;
+      -webkit-flex: 0 0 auto;
       flex: 0 0 auto;
     }
 
@@ -748,7 +859,7 @@
     }
 
     /* =========================================================
-       11. BLOCO DE CONTATO / WHATSAPP
+       12. BLOCO DE CONTATO / WHATSAPP
        ========================================================= */
     .ts-wa-card {
       background: #fff;
@@ -768,7 +879,13 @@
       background: rgba(37, 211, 102, .12);
       color: var(--ts-wa);
       margin: 0 auto 1.25rem;
+      -webkit-animation: tsPulse 2.6s ease-in-out infinite;
       animation: tsPulse 2.6s ease-in-out infinite;
+    }
+
+    @-webkit-keyframes tsPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, .35); }
+      50%      { box-shadow: 0 0 0 16px rgba(37, 211, 102, 0); }
     }
 
     @keyframes tsPulse {
@@ -802,8 +919,10 @@
       gap: 1rem;
     }
     .ts-contact-list li {
+      display: -webkit-flex;
       display: flex;
       gap: .9rem;
+      -webkit-align-items: flex-start;
       align-items: flex-start;
     }
     .ts-contact-list .ts-ico { margin-bottom: 0; }
@@ -828,12 +947,14 @@
       place-items: center;
       box-shadow: 0 12px 28px rgba(37, 211, 102, .45);
       z-index: 1035;
+      -webkit-transition: -webkit-transform .25s ease, box-shadow .25s ease, background-color .25s ease;
       transition: transform .25s ease, box-shadow .25s ease, background-color .25s ease;
     }
     .ts-wa-float:hover,
     .ts-wa-float:focus {
       background: var(--ts-wa-dark);
       color: #fff;
+      -webkit-transform: scale(1.08);
       transform: scale(1.08);
       box-shadow: 0 16px 36px rgba(37, 211, 102, .6);
     }
@@ -843,7 +964,7 @@
     }
 
     /* =========================================================
-       12. FOOTER
+       13. FOOTER
        ========================================================= */
     .ts-footer {
       background: linear-gradient(170deg, var(--ts-navy-800) 0%, var(--ts-navy-900) 100%);
@@ -863,6 +984,7 @@
 
     .ts-footer a {
       color: rgba(255, 255, 255, .68);
+      -webkit-transition: color .25s ease;
       transition: color .25s ease;
     }
     .ts-footer a:hover { color: #fff; }
@@ -886,6 +1008,7 @@
 
     .ts-social {
       list-style: none;
+      display: -webkit-flex;
       display: flex;
       gap: .6rem;
       padding: 0;
@@ -900,11 +1023,13 @@
       background: rgba(255, 255, 255, .07);
       border: 1px solid rgba(255, 255, 255, .12);
       color: rgba(255, 255, 255, .8);
+      -webkit-transition: background-color .25s ease, color .25s ease, -webkit-transform .25s ease;
       transition: background-color .25s ease, color .25s ease, transform .25s ease;
     }
     .ts-social a:hover {
       background: var(--ts-blue);
       color: #fff;
+      -webkit-transform: translateY(-3px);
       transform: translateY(-3px);
     }
 
@@ -914,16 +1039,19 @@
     }
 
     /* =========================================================
-       13. ANIMAÇÕES
+       14. ANIMAÇÕES
        ========================================================= */
     .reveal {
       opacity: 0;
+      -webkit-transform: translateY(26px);
       transform: translateY(26px);
+      -webkit-transition: opacity .75s ease, -webkit-transform .75s cubic-bezier(.22, .61, .36, 1);
       transition: opacity .75s ease, transform .75s cubic-bezier(.22, .61, .36, 1);
       will-change: opacity, transform;
     }
     .reveal.is-visible {
       opacity: 1;
+      -webkit-transform: none;
       transform: none;
     }
 
@@ -932,7 +1060,9 @@
 
       .reveal {
         opacity: 1 !important;
+        -webkit-transform: none !important;
         transform: none !important;
+        -webkit-transition: none !important;
         transition: none !important;
       }
 
@@ -942,6 +1072,7 @@
       .ts-social a,
       .ts-link-arrow,
       .ts-wa-float {
+        -webkit-transition: none !important;
         transition: none !important;
       }
 
@@ -950,32 +1081,56 @@
       .ts-btn:hover,
       .ts-social a:hover,
       .ts-wa-float:hover {
+        -webkit-transform: none !important;
         transform: none !important;
       }
 
-      .ts-wa-badge { animation: none !important; }
+      .ts-wa-badge { -webkit-animation: none !important; animation: none !important; }
     }
 
     /* =========================================================
-       14. AJUSTES FINOS RESPONSIVOS
+       15. AJUSTES RESPONSIVOS FINOS
        ========================================================= */
     @media (max-width: 575.98px) {
       .ts-hero { padding-top: 7.5rem; }
-      .ts-btn { width: 100%; }
+      .ts-btn { width: 100%; white-space: normal; }
       .ts-btn-auto { width: auto; }
-      .ts-hero-list { flex-direction: column; gap: .6rem; }
+      .ts-hero-list { -webkit-flex-direction: column; flex-direction: column; gap: .6rem; }
       .ts-hero-card { border-radius: 20px; }
       .ts-chip { font-size: .68rem; padding: .35rem .7rem; }
       .ts-brand-logo { width: 44px; height: 44px; }
+    }
+
+    @media (max-width: 400px) {
+      .ts-hc-value {
+        font-size: clamp(1.15rem, .95rem + 1vw, 1.4rem);
+      }
+      .ts-hero-title {
+        font-size: clamp(1.6rem, 1.1rem + 3vw, 2.2rem);
+      }
     }
 
     @media (min-width: 576px) {
       .ts-btn-auto { width: auto; }
     }
   </style>
+
+  <!-- Fallback para navegadores sem JavaScript: revela todo o conteúdo -->
+  <noscript>
+    <style>
+      .reveal {
+        opacity: 1 !important;
+        -webkit-transform: none !important;
+        transform: none !important;
+      }
+    </style>
+  </noscript>
 </head>
 
 <body>
+
+  <!-- Skip link — visível apenas ao receber foco pelo teclado -->
+  <a href="#inicio" class="ts-skip-link">Pular para o conteúdo principal</a>
 
   <!-- =========================================================
        NAVBAR
@@ -987,7 +1142,7 @@
         <a class="navbar-brand ts-brand" href="#inicio" aria-label="TSoluções Financeiras — ir para o início">
           <img
             src="https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg?stp=c191.191.1666.1666a_dst-jpg_tt6&amp;cstp=mx1666x1666&amp;ctp=s200x200&amp;_nc_cat=107&amp;_nc_map=urlgen_bucketless&amp;ccb=1-7&amp;_nc_sid=2d3e12&amp;_nc_ohc=QAYDD-Iog1cQ7kNvwGtMla4&amp;_nc_oc=AdpEH-Ju0izydy4nAgXyMtOVDZp-PUsl5LcB4TDBaKGbwiK61t94Q_FdmeloC7y9Gyc&amp;_nc_zt=24&amp;_nc_ht=scontent.ffec7-1.fna&amp;_nc_gid=5FdniabyTT880GG-qgKDaA&amp;_nc_ss=7b289&amp;oh=00_AQKhyqugqHG5Z-Cy38LrqPhJL71tA21o_127KyNp59UdUQ&amp;oe=6AB8A1D6"
-            alt="Logotipo TSoluções Financeiras"
+            alt="Logotipo TSoluções Financeiras — Correspondente Bancário Online"
             class="ts-brand-logo"
             width="52" height="52"
             loading="eager"
@@ -1036,9 +1191,7 @@
 
   <main>
 
-    <!-- =========================================================
-         HERO
-         ========================================================= -->
+    <!-- HERO -->
     <section class="ts-hero" id="inicio">
       <div class="container">
         <div class="row align-items-center g-5">
@@ -1111,9 +1264,7 @@
       </div>
     </section>
 
-    <!-- =========================================================
-         QUEM SOMOS
-         ========================================================= -->
+    <!-- QUEM SOMOS -->
     <section class="ts-section" id="quem-somos">
       <div class="container">
         <div class="row g-5 align-items-center">
@@ -1180,9 +1331,7 @@
       </div>
     </section>
 
-    <!-- =========================================================
-         SOLUÇÕES
-         ========================================================= -->
+    <!-- SOLUÇÕES -->
     <section class="ts-section ts-section-soft" id="solucoes">
       <div class="container">
 
@@ -1242,9 +1391,7 @@
       </div>
     </section>
 
-    <!-- =========================================================
-         BENEFÍCIOS
-         ========================================================= -->
+    <!-- BENEFÍCIOS -->
     <section class="ts-section" id="beneficios">
       <div class="container">
 
@@ -1313,9 +1460,7 @@
       </div>
     </section>
 
-    <!-- =========================================================
-         COMO FUNCIONA
-         ========================================================= -->
+    <!-- COMO FUNCIONA -->
     <section class="ts-section ts-section-dark" id="como-funciona">
       <div class="container">
 
@@ -1381,9 +1526,7 @@
       </div>
     </section>
 
-    <!-- =========================================================
-         FAQ
-         ========================================================= -->
+    <!-- FAQ -->
     <section class="ts-section" id="faq">
       <div class="container">
 
@@ -1511,9 +1654,7 @@
       </div>
     </section>
 
-    <!-- =========================================================
-         CONTATO — CONVERSA DIRETA NO WHATSAPP
-         ========================================================= -->
+    <!-- CONTATO -->
     <section class="ts-section ts-section-soft" id="contato">
       <div class="container">
         <div class="row g-5 align-items-start">
@@ -1581,7 +1722,7 @@
 
               <p class="ts-wa-note">
                 Ao clicar, você será redirecionado para o WhatsApp com a mensagem já preenchida:
-                “Olá! Gostaria de obter informações sobre os serviços da TSoluções Financeiras.”
+                "Olá! Gostaria de obter informações sobre os serviços da TSoluções Financeiras."
               </p>
             </div>
           </div>
@@ -1592,9 +1733,7 @@
 
   </main>
 
-  <!-- =========================================================
-       FOOTER
-       ========================================================= -->
+  <!-- FOOTER -->
   <footer class="ts-footer">
     <div class="container">
 
@@ -1604,7 +1743,7 @@
           <a class="ts-brand" href="#inicio" aria-label="TSoluções Financeiras — ir para o início">
             <img
               src="https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg?stp=c191.191.1666.1666a_dst-jpg_tt6&amp;cstp=mx1666x1666&amp;ctp=s200x200&amp;_nc_cat=107&amp;_nc_map=urlgen_bucketless&amp;ccb=1-7&amp;_nc_sid=2d3e12&amp;_nc_ohc=QAYDD-Iog1cQ7kNvwGtMla4&amp;_nc_oc=AdpEH-Ju0izydy4nAgXyMtOVDZp-PUsl5LcB4TDBaKGbwiK61t94Q_FdmeloC7y9Gyc&amp;_nc_zt=24&amp;_nc_ht=scontent.ffec7-1.fna&amp;_nc_gid=5FdniabyTT880GG-qgKDaA&amp;_nc_ss=7b289&amp;oh=00_AQKhyqugqHG5Z-Cy38LrqPhJL71tA21o_127KyNp59UdUQ&amp;oe=6AB8A1D6"
-              alt="Logotipo TSoluções Financeiras"
+              alt="Logotipo TSoluções Financeiras — Correspondente Bancário Online"
               class="ts-brand-logo"
               width="56" height="56"
               loading="lazy"
@@ -1719,9 +1858,6 @@
 
       /* =====================================================
          0. SEGURANÇA — Frame-busting (segunda camada)
-         A primeira camada roda no <head>. Esta é apenas uma
-         redundância caso o <head> seja contornado.
-         Ignora file:// (origem única) e respeita ambiente produtivo.
          ===================================================== */
       if (location.protocol !== 'file:' && window.top !== window.self) {
         document.documentElement.style.display = 'none';
@@ -1731,13 +1867,10 @@
 
       /* =====================================================
          1. CONFIGURAÇÃO DO WHATSAPP
-         Altere APENAS aqui o número e a mensagem padrão.
-         Formato: 55 + DDD + número (somente dígitos).
          ===================================================== */
       var WA_NUMBER = '5511999999999';
       var WA_MESSAGE = 'Olá! Gostaria de obter informações sobre os serviços da TSoluções Financeiras.';
 
-      // Sanitização: garante que o número contém apenas dígitos
       if (!/^\d{10,15}$/.test(WA_NUMBER)) {
         console.error('WA_NUMBER inválido. Use apenas dígitos (55 + DDD + número).');
         return;
@@ -1745,7 +1878,6 @@
 
       var WA_URL = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(WA_MESSAGE);
 
-      // Atualiza todos os links .js-wa com a URL canônica
       document.querySelectorAll('.js-wa').forEach(function (el) {
         el.setAttribute('href', WA_URL);
       });
@@ -1859,11 +1991,101 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "FinancialService",
-    "name": "TSoluções Financeiras",
-    "description": "Correspondente bancário online. Negociamos crédito imobiliário, capital de giro e consórcio com instituições financeiras e fundos de investimento parceiros.",
-    "url": "https://tsolucoesfinanceiras.com.br/",
-    "areaServed": "BR"
+    "@graph": [
+      {
+        "@type": ["FinancialService", "LocalBusiness"],
+        "@id": "https://tsolucoesfinanceiras.com.br/#organization",
+        "name": "TSoluções Financeiras",
+        "alternateName": ["T Soluções Financeiras", "TSoluções", "T Soluções"],
+        "description": "Correspondente bancário online especializado em crédito imobiliário, capital de giro e consórcio. Negociamos crédito com instituições financeiras e fundos de investimento parceiros.",
+        "url": "https://tsolucoesfinanceiras.com.br/",
+        "logo": "https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg",
+        "image": "https://scontent.ffec7-1.fna.fbcdn.net/v/t39.30808-1/591335212_1155761043347605_4139141336250209800_n.jpg",
+        "areaServed": { "@type": "Country", "name": "Brasil" },
+        "address": { "@type": "PostalAddress", "addressCountry": "BR" },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "Atendimento ao Cliente",
+          "availableLanguage": "Portuguese",
+          "url": "https://wa.me/5511999999999"
+        },
+        "sameAs": ["https://facebook.com/Bargaca10"],
+        "priceRange": "$$",
+        "knowsAbout": [
+          "Crédito Imobiliário",
+          "Capital de Giro",
+          "Consórcio",
+          "Correspondente Bancário",
+          "Financiamento"
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://tsolucoesfinanceiras.com.br/#website",
+        "url": "https://tsolucoesfinanceiras.com.br/",
+        "name": "TSoluções Financeiras",
+        "inLanguage": "pt-BR",
+        "publisher": { "@id": "https://tsolucoesfinanceiras.com.br/#organization" }
+      },
+      {
+        "@type": "Service",
+        "name": "Crédito Imobiliário",
+        "provider": { "@id": "https://tsolucoesfinanceiras.com.br/#organization" },
+        "description": "Linha de crédito imobiliário negociada junto a instituições financeiras e fundos de investimento parceiros, com propostas pré-aprovadas.",
+        "areaServed": { "@type": "Country", "name": "Brasil" }
+      },
+      {
+        "@type": "Service",
+        "name": "Capital de Giro",
+        "provider": { "@id": "https://tsolucoesfinanceiras.com.br/#organization" },
+        "description": "Recurso financeiro para apoiar o dia a dia da empresa, com negociação junto a instituições financeiras e fundos de investimento parceiros.",
+        "areaServed": { "@type": "Country", "name": "Brasil" }
+      },
+      {
+        "@type": "Service",
+        "name": "Consórcio",
+        "provider": { "@id": "https://tsolucoesfinanceiras.com.br/#organization" },
+        "description": "Alternativa sem juros para planejamento financeiro e expansão do negócio, com taxa de administração diluída no prazo contratado.",
+        "areaServed": { "@type": "Country", "name": "Brasil" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "O que a TSoluções Financeiras faz?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Somos um correspondente bancário online. A partir do seu perfil, negociamos créditos com instituições financeiras e fundos de investimentos parceiros e enviamos propostas pré-aprovadas para você."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Quais linhas de crédito estão disponíveis?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Trabalhamos com crédito imobiliário, capital de giro e consórcio. As linhas de crédito estratégicas vão de R$ 300 mil a R$ 60 milhões, com condições exclusivas."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "O consórcio tem juros?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Não. No consórcio você só paga a taxa de administração, que é diluída no prazo contratado, em parcelas que cabem no seu bolso."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Como faço para falar com a TSoluções Financeiras?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Clique em qualquer botão verde 'Falar com um consultor' nesta página. Uma conversa será aberta diretamente no WhatsApp com a nossa equipe."
+            }
+          }
+        ]
+      }
+    ]
   }
   </script>
 
